@@ -1,7 +1,7 @@
 
 # nested
 
-A testing framework for LÖVE projects. 
+A testing framework for LÖVE projects.
 
 
 ## API Reference
@@ -41,7 +41,7 @@ local test_case = nested.TestCase(name, description)
 #### Attach a Runner to the Test Case
 
 ```lua
-local params = 
+local params =
 {
     { 4, 4 }
 }
@@ -87,7 +87,7 @@ local nested = require("nested")
 local Example = nested.TestCase("Hello World")
 Example:describe("This makes sure two numbers added as a total equal another number.")
 
-local params = 
+local params =
 {
     { 2 + 2,      4 }
     { 6 + 9, "nice" }
