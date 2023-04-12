@@ -78,20 +78,24 @@ function Test:onCompleted(message, ...)
         table.insert(self.statuses, Test.Status.STATUS_PASS)
     end
 
-    self.log:write_raw("Duration: " .. self.log:getWriteTimeDisplay())
+    local is_last = #self.statuses == self.total_tasks
 
-    if #self.statuses == self.total_tasks then
+    if #self.statuses <= self.total_tasks then
         if self.status ~= Test.Status.STATUS_FAIL then
             self.status = Test.Status.STATUS_PASS
         end
 
-        self.log:write_raw("Overall Status: %s\n", self.status)
-    else
+        self.log:write_raw("Duration: %s", self.log:getWriteTimeDisplay())
         self.log:write_raw("Status: %s", self.statuses[#self.statuses])
+
         if self.statuses[#self.statuses] == Test.Status.STATUS_FAIL then
             return self.log:write_raw("Traceback: %s\n", message)
         end
-        self.log:write_raw("")
+        self.log:write_raw("%s%s", string.rep("-", 20), (not is_last and "\n" or ""))
+        if is_last then
+            self.log:write_raw("Total Duration: %s", self.log:getOverallTimeDisplay())
+            self.log:write_raw("Overall Status: %s", self.status)
+        end
     end
 end
 

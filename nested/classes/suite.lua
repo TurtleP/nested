@@ -16,7 +16,6 @@ local function setUp(self, context, parameters, id)
         self.context[key] = value
     end
 
-    self.log:write_raw("[Setup]")
     if self.description then
         self.log:write_raw("Test Case: %s - %s (%d/%d)", self.name, self.description, self.id, self.total_tasks)
     end
@@ -38,7 +37,7 @@ local function setUp(self, context, parameters, id)
     if #parameters > 0 then
         self.log:write_raw("Parameters: %s", table.concat(buffer, ", "))
     end
-    self.log:write_raw(string.rep("-", 20) .. "\n")
+    self.log:write_raw(string.rep("-", 20))
 
     return self:setUp()
 end
@@ -53,7 +52,7 @@ local function load_test(filepath)
     filepath = filepath:gsub("/", "%."):gsub("%.lua", "")
 
     local success, test = pcall(require, filepath)
-    assert(success and test.type and test:type() == "TestCase", ("Failed to load test case at '%s'."):format(filepath))
+    assert(success and test.type and test:type() == "TestCase", ("Failed to load test case at '%s': %s"):format(filepath, test))
 
     return { class = test, runner = test.run }
 end

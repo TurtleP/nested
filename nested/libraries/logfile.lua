@@ -56,6 +56,7 @@ function Log.new(filename, config)
     assert(filename and type(filename) == "string")
 
     instance.last_write = get_time()
+    instance.first_write = instance.last_write
 
     instance.config = default_config
 
@@ -94,11 +95,13 @@ for level, _ in pairs(levels) do
 end
 
 function Log:getWriteTimeOffset()
-    return get_time() - self.last_write
+    local time = get_time() - self.last_write
+    self.last_write = get_time()
+    return time
 end
 
-function Log:getWriteTimeDisplay()
-    local offset = self:getWriteTimeOffset()
+function Log:getWriteTimeDisplay(time)
+    local offset = time or self:getWriteTimeOffset()
 
     if offset < 0.001 then
         return "< 1ms"
@@ -109,6 +112,11 @@ function Log:getWriteTimeDisplay()
     local seconds = offset % 60
 
     return ("%02d:%02d:%05.3f"):format(hours, minutes, seconds)
+end
+
+function Log:getOverallTimeDisplay()
+    local time = get_time() - self.first_write
+    return self:getWriteTimeDisplay(time)
 end
 
 ---Write directly to the log
