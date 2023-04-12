@@ -12,6 +12,7 @@ if got_love and love._version_major >= 12 then
     open_file = love.filesystem.openFile
 end
 
+---@class Log
 local Log = {}
 Log.__index = Log
 
@@ -28,13 +29,14 @@ local levels =
 local default_config =
 {
     level = "info",
-    path = "log.txt",
+    path = "log",
     format = "$datetime $level $source$sep$line [$time_since_last_write] $message",
     datetime_format = "%Y-%m-%d %H:%M:%S",
     source_info = function()
         local info = debug.getinfo(3, "Sl")
         return { source = info.short_src, line = info.currentline }
-    end
+    end,
+    name_append_time = true
 }
 
 local function apply_template(template, sub)
@@ -45,17 +47,22 @@ local function apply_template(template, sub)
     return result
 end
 
+---Creates a new Log with the filename and config
+---@param filename string The name of the log without the extension
+---@param config { level: string, path: string, format: string, datetime_format: string, source_info: function }
+---@return Log
 function Log.new(filename, config)
     local instance = setmetatable({}, Log)
     assert(filename and type(filename) == "string")
 
     instance.last_write = get_time()
+
     instance.config = default_config
 
-    config.filepath = filename .. "_" .. os.time() .. ".log"
     instance:set_config(config)
+    instance.path = instance.config.name_append_time and (filename .. "_" .. os.time()) or filename
 
-    instance.file = open_file(config.filepath, "a")
+    instance.file = open_file(instance.path .. ".log", "a")
     instance.name = filename
 
     instance.buffer = {}
@@ -94,7 +101,7 @@ function Log:getWriteTimeDisplay()
     local offset = self:getWriteTimeOffset()
 
     if offset < 0.001 then
-        return "(less than one millisecond)"
+        return "< 1ms"
     end
 
     local hours = floor(offset / 3600)
@@ -104,12 +111,38 @@ function Log:getWriteTimeDisplay()
     return ("%02d:%02d:%05.3f"):format(hours, minutes, seconds)
 end
 
+---Write directly to the log
+---@param message string
+---@vararg any format variables
+function Log:write_raw(message, ...)
+    assert(message and type(message) == "string", "bad argument #2: message cannot be nil")
+
+    local formatted_message = message:format(...)
+
+    self.file:write(formatted_message .. "\n")
+    table.insert(self.buffer, formatted_message)
+end
+
+---Write to the Log without a trace level
+---@param message any
+---@vararg any format variables
 function Log:write(message, ...)
+    assert(message and type(message) == "string", "bad argument #2: message cannot be nil")
+
     self:write_level("", message, ...)
 end
 
+---Write to the Log \
+---Note: There are convinience functions, e.g. `Log:info(message, ...)` - use those instead!
+---@param level string log level to use
+---@param message string formattable message to write
+---@vararg any format variables
 function Log:write_level(level, message, ...)
-    assert(message, "bad argument #2: message cannot be nil")
+    if level and levels[self.config.level] > levels[level:lower()] then
+        return
+    end
+
+    assert(message and type(message) == "string", "bad argument #2: message cannot be nil")
 
     local source_info = self.config.source_info()
 
@@ -125,8 +158,7 @@ function Log:write_level(level, message, ...)
         message               = message
     }):gsub("%s+", " ")
 
-    self.file:write(formatted_message .. "\n")
-    table.insert(self.buffer, formatted_message)
+    self:write_raw(formatted_message)
 end
 
 return setmetatable(Log, {

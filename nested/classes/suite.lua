@@ -6,12 +6,21 @@ local log   = require(path .. ".libraries.logfile")
 
 local TestSuite = Class()
 
-local function setUp(self, context, parameters)
+local function oneTimeSetup(self)
+    self.log = log(self.name, { level = "trace", format = "$datetime|$level|$message" })
+end
+
+local function setUp(self, context, parameters, id)
+    self.id = id
     for key, value in pairs(context) do
         self.context[key] = value
     end
 
-    self.log = log(context.name, { level = "trace", format = "$datetime|$level|$message" })
+    self.log:write_raw("[Setup]")
+    if self.description then
+        self.log:write_raw("Test Case: %s - %s (%d/%d)", self.name, self.description, self.id, self.total_tasks)
+    end
+    self.log:write_raw("Test Case: %s (%d/%d)", self.name, self.id, self.total_tasks)
 
     local buffer = {}
     for index = 1, #parameters do
@@ -25,21 +34,17 @@ local function setUp(self, context, parameters)
             table.insert(buffer, tostring(current_parameter))
         end
     end
-    self.log:trace("Setting up..")
-
-    if self.description then
-        self.log:info(self.description)
-    end
 
     if #parameters > 0 then
-        self.log:debug("Detected parameters: " .. table.concat(buffer, ", "))
+        self.log:write_raw("Parameters: %s", table.concat(buffer, ", "))
     end
+    self.log:write_raw(string.rep("-", 20) .. "\n")
 
     return self:setUp()
 end
 
 local function tearDown(self)
-    self.log:trace("Tearing down..")
+    self.log:write_raw(string.rep("-", 20))
 
     return self:tearDown()
 end
@@ -50,7 +55,7 @@ local function load_test(filepath)
     local success, test = pcall(require, filepath)
     assert(success and test.type and test:type() == "TestCase", ("Failed to load test case at '%s'."):format(filepath))
 
-    return { class = test, name = test.name, runner = test.run }
+    return { class = test, runner = test.run }
 end
 
 ---Creates a new Test Suite that holds Tests
@@ -68,10 +73,10 @@ function TestSuite:new(name, filepath)
     local filepath_type = type(filepath)
 
     if filepath_type == "string" then
-        load_test(filepath)
+        table.insert(self.tasks, load_test(filepath))
     elseif filepath_type == "table" then
         for index = 1, #filepath do
-            load_test(filepath[index])
+            table.insert(self.tasks, load_test(filepath[index]))
         end
     end
 
@@ -83,8 +88,8 @@ end
 ---@param task_class Test
 ---@param context { wait: function, name: string }
 ---@param parameters table?
-local function new_task(task_class, context, parameters)
-    task_class._setUp = setUp(task_class, context, parameters)
+local function new_task(task_class, context, parameters, id)
+    task_class._setUp = setUp(task_class, context, parameters, id)
     task_class:run(unpack(parameters))
 end
 
@@ -92,8 +97,6 @@ function TestSuite:setUpKernel()
     local context = { sleep = self.kernel.wait }
 
     for index = 1, #self.tasks do
-        context.name = self.tasks[index].name
-
         local class = self.tasks[index].class
         class._tearDown = tearDown
 
@@ -107,11 +110,14 @@ function TestSuite:setUpKernel()
             class:onFailure(message)
         end
 
+        oneTimeSetup(class)
+
         if class:hasParams() then
             self.tasks[index].class.total_tasks = #params
+
             for parameter = 1, #params do
                 self.kernel:call(function()
-                    new_task(class, context, params[parameter])
+                    new_task(class, context, params[parameter], parameter)
                 end, nil, onCompleted, onFailure)
             end
         else

@@ -42,8 +42,9 @@ function Test:new(name, description)
     self.run = function()
     end
 
-    self.description = description or ""
+    self.description = description or nil
     self.parameters  = {}
+    self.id          = 1
 
     self.log  = nil
     self.total_tasks = 1
@@ -77,19 +78,20 @@ function Test:onCompleted(message, ...)
         table.insert(self.statuses, Test.Status.STATUS_PASS)
     end
 
-    self.log:info("Duration: " .. self.log:getWriteTimeDisplay())
+    self.log:write_raw("Duration: " .. self.log:getWriteTimeDisplay())
 
     if #self.statuses == self.total_tasks then
         if self.status ~= Test.Status.STATUS_FAIL then
             self.status = Test.Status.STATUS_PASS
         end
 
-        self.log:info("Overall Status: " .. self.status)
+        self.log:write_raw("Overall Status: %s\n", self.status)
     else
-        self.log:info("Status: " .. self.statuses[#self.statuses])
+        self.log:write_raw("Status: %s", self.statuses[#self.statuses])
         if self.statuses[#self.statuses] == Test.Status.STATUS_FAIL then
-            self.log:info("Traceback: " .. message)
+            return self.log:write_raw("Traceback: %s\n", message)
         end
+        self.log:write_raw("")
     end
 end
 
@@ -99,12 +101,12 @@ function Test:onFailure()
 end
 
 ---Attaches a runner function to the test.
----@param func function
+---@param f function
 ---@param parameters table
-function Test:attach(func, parameters)
-    assert(type(func) == "function", "Runner is not a function")
+function Test:attach(f, parameters)
+    assert(type(f) == "function", "Runner is not a function")
 
-    self.run = func
+    self.run = f
     self.parameters = parameters or {}
 
     return self
@@ -116,14 +118,6 @@ end
 
 function Test:getParams()
     return self.parameters
-end
-
-function Test:getStatus()
-    return self.status
-end
-
-function Test:getOverallStatus()
-    return self.status
 end
 
 ---Sleep the test for a duration
