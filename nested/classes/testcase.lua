@@ -9,8 +9,14 @@ Test.Status =
 {
     STATUS_PASS = "PASSED",
     STATUS_FAIL = "FAILED",
+    STATUS_SKIPPED = "SKIPPED",
     STATUS_UNKNOWN = "UNKNOWN"
 }
+
+-- Quietly add some extra assert functions
+function assert:inconclusive(message, ...)
+    error("Inconclusive: " .. message:format(...))
+end
 
 ---Private set up. Calls *:setUp.
 ---@param context table
@@ -51,14 +57,11 @@ function Test:new(name, description)
 
     self.assert = assert
 
-    -- status of all tests
     self.context = {}
 
     -- overall status
     self.status = Test.Status.STATUS_UNKNOWN
     self.statuses = {}
-
-    self.failed = false
 
     return self
 end
@@ -81,27 +84,34 @@ function Test:onCompleted(message, ...)
     local is_last = #self.statuses == self.total_tasks
 
     if #self.statuses <= self.total_tasks then
-        if self.status ~= Test.Status.STATUS_FAIL then
-            self.status = Test.Status.STATUS_PASS
-        end
-
         self.log:write_raw("Duration: %s", self.log:getWriteTimeDisplay())
         self.log:write_raw("Status: %s", self.statuses[#self.statuses])
 
-        if self.statuses[#self.statuses] == Test.Status.STATUS_FAIL then
-            return self.log:write_raw("Traceback: %s\n", message)
+        if self.statuses[#self.statuses] ~= Test.Status.STATUS_PASS then
+            self.log:write_raw("Traceback: %s", message)
         end
+
         self.log:write_raw("%s%s", string.rep("-", 20), (not is_last and "\n" or ""))
+
         if is_last then
+            if self.status ~= Test.Status.STATUS_FAIL then
+                self.status = Test.Status.STATUS_PASS
+            end
+
             self.log:write_raw("Total Duration: %s", self.log:getOverallTimeDisplay())
             self.log:write_raw("Overall Status: %s", self.status)
         end
     end
 end
 
-function Test:onFailure()
-    table.insert(self.statuses, Test.Status.STATUS_FAIL)
-    self.status = Test.Status.STATUS_FAIL
+function Test:onFailure(message)
+    local status = Test.Status.STATUS_SKIPPED
+    if not message:find("Inconclusive") then
+        status = Test.Status.STATUS_SKIPPED
+        self.status = Test.Status.STATUS_FAIL
+    end
+
+    table.insert(self.statuses, status)
 end
 
 ---Attaches a runner function to the test.
